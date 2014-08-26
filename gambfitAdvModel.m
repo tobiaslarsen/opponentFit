@@ -60,15 +60,16 @@ for(k=1:length(subjectNo)) %reading in the data and making data vectors if group
 end
 
 condition=round(length(choice)/30)-1; % # of conditions-1
-x0(1)=rand; x0(2)=rand; x0(3)=rand;
+% x0(1)=rand; x0(2)=rand; x0(3)=rand;
 
 %%%Function call to hill-climbing (search) algorithm
-[parms goodness exitFlag] = fminsearchbnd(@(x0) rlfitter(x0,outcome,choice,result,rewTime,cueTime,condition,0), x0,[0.05 0.01 -1],[1 10 1]); %, options);
+% [parms goodness exitFlag] = fminsearchbnd(@(x0) rlfitter(x0,outcome,choice,result,rewTime,cueTime,condition,0), x0,[0.05 0.01 -1],[1 10 1]); %, options);
 
 % x0=parms;
-% rlfitter(x0,outcome,choice,result,rewTime,cueTime,condition,1);
-% parms=choice;
-% goodness=outcome;
+x0=[0.17,1,0.1];
+rlfitter(x0,outcome,choice,result,rewTime,cueTime,condition,1);
+parms=choice;
+goodness=outcome;
 
             
 %Model with built-in fitness function
@@ -83,10 +84,15 @@ neut_val=0;
 result=outcome;
 P=[]; 
 Elist=[];
+AdvElist=[];
 ADVerr=[];
+AdvErrList=[];
+TDerr=[];
 for condI=0:max(condition)
     Ev=parms(3).*ones(1,2);
+    E=parms(3).*ones(1,2);    
     Elist=[Elist; E];
+    AdvElist=[AdvElist; Ev];
     for trialI=1:nTrialsPerCond
 
         E_neg=E(2:-1:1); % if expected values are negative, flip calculated choice probabilities 
@@ -102,27 +108,42 @@ for condI=0:max(condition)
         
         %Model: Advantage learning 
         if(choice((condI*nTrialsPerCond+trialI))>=0)
-           AdvErr = result(condI*nTrialsPerCond+trialI) + max(Ev) - Ev(choice(condI*nTrialsPerCond+trialI)+1);
-            Ev(choice(condI*nTrialsPerCond+trialI)+1)=Ev(choice(condI*nTrialsPerCond+trialI)+1)+AdvErr;
+           AdvErr = result(condI*nTrialsPerCond+trialI) + mean(Ev) - Ev(choice(condI*nTrialsPerCond+trialI)+1);
+           AdvErrList=[AdvErrList;AdvErr];
+           Ev(choice(condI*nTrialsPerCond+trialI)+1)=Ev(choice(condI*nTrialsPerCond+trialI)+1)+alpha*AdvErr;
         else
-            AdvErrList=[AdvErr;0.0];
+            AdvErrList=[AdvErrList;0.0];
         end
+
+        AdvElist=[AdvElist; Ev];        
+        
+        if(choice((condI*nTrialsPerCond+trialI))>=0)
+            TDerr=[TDerr; (result(condI*nTrialsPerCond+trialI)-E(choice((condI*nTrialsPerCond+trialI))+1))];
+            E(choice((condI*nTrialsPerCond+trialI))+1) = ...
+            (1-alpha)*E(choice((condI*nTrialsPerCond+trialI))+1) ...
+            + alpha*result(condI*nTrialsPerCond+trialI);
+%             E(3-(choice((condI*nTrialsPerCond+trialI))+1)) = E(3-(choice((condI*nTrialsPerCond+trialI))+1)) + ...
+%                 alpha*(E(choice((condI*nTrialsPerCond+trialI))+1)-result(condI*nTrialsPerCond+trialI));        
+        else
+            TDerr=[TDerr; 0.0];
+        end
+        Elist=[Elist; E];
+        
         
 
-        
-        Elist=[Elist; Ev];
         %Stochastic choice rule: Softmax or exponentiated Luce choice rule
 %        P = [P; (.0001+exp(E(1)*theta))/((sum(exp(E*theta)))+.0001)];
     end %for trialI=1:size(outcome,1)
     Elist=Elist(1:end-1,:);
+    AdvElist=AdvElist(1:end-1,:);
 %     PwlList=[PwlList;Pwl];
 end %for condI=1:size(condition,2)
 
 
-Pcombi=P*gamma + (1-gamma)*PwlList;
+% Pcombi=P*gamma + (1-gamma)*PwlList;
 
 POutput=P;
-P=Pcombi;
+% P=Pcombi;
 P=P(isfinite(choice),:);
 % Elist=Elist(isfinite(choice),:);
 % rewTime=rewTime(isfinite(choice),:);
@@ -141,7 +162,7 @@ SSE = (nansum(nansum((choice - P).^2)));
 %small manipulation to keep from taking log of 0
 P = .9998.*P + .0001; 
 choice = .9998.*choice + .0001; 
-
+logLik = log(P);
 neg2TLogLik = -2*nansum((nansum(logLik))); 
 
 if(plot_flag)
@@ -154,11 +175,23 @@ if(plot_flag)
     while (size(Elist,1)<60)
         Elist=[Elist; zeros(1,size(Elist,2))];
     end
-    
+    figure(55);
+    plot(Elist,'.');
+    while (size(AdvElist,1)<60)
+        AdvElist=[AdvElist; zeros(1,size(AdvElist,2))];
+    end    
+    figure(56);
+    plot(AdvElist,'.');    
     while (size(TDerr,1)<60)
         TDerr=[TDerr; zeros(1,size(TDerr,2))];
     end
-    
+    figure(57);
+    plot(TDerr,'.');        
+    while (size(AdvErrList,1)<60)
+        AdvErrList=[AdvErrList; zeros(1,size(AdvErrList,2))];
+    end
+    figure(58);
+    plot(AdvErrList,'.');    
     while (size(rewTime,1)<60)
         rewTime=[rewTime; zeros(1,size(time,2))];
     end
