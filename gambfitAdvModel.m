@@ -81,20 +81,15 @@ gamma=1;%parms(3);
 neut_val=0;
 
 result=outcome;
-P=[];
-Pwl=[];
-PwlList=[];
-
+P=[]; 
 Elist=[];
-TDerr=[];
+ADVerr=[];
 for condI=0:max(condition)
-%         E=zeros(1,2);
-        E=parms(3).*ones(1,2);
+    Ev=parms(3).*ones(1,2);
     Elist=[Elist; E];
-%     E=0.5*ones(1,2);
     for trialI=1:nTrialsPerCond
 
-        E_neg=E(2:-1:1);
+        E_neg=E(2:-1:1); % if expected values are negative, flip calculated choice probabilities 
         if(min(E)<0)
             P = [P; (.0001+exp(abs(E_neg/theta)))/((sum(exp(abs(E_neg)/theta)))+.0001)]; 
         else
@@ -107,15 +102,15 @@ for condI=0:max(condition)
         
         %Model: Advantage learning 
         if(choice((condI*nTrialsPerCond+trialI))>=0)
-%            ADVerr = rew - chosen value
-            
+           AdvErr = result(condI*nTrialsPerCond+trialI) + max(Ev) - Ev(choice(condI*nTrialsPerCond+trialI)+1);
+            Ev(choice(condI*nTrialsPerCond+trialI)+1)=Ev(choice(condI*nTrialsPerCond+trialI)+1)+AdvErr;
         else
-            TDerr=[TDerr;0.0];
+            AdvErrList=[AdvErr;0.0];
         end
         
 
         
-        Elist=[Elist; E];
+        Elist=[Elist; Ev];
         %Stochastic choice rule: Softmax or exponentiated Luce choice rule
 %        P = [P; (.0001+exp(E(1)*theta))/((sum(exp(E*theta)))+.0001)];
     end %for trialI=1:size(outcome,1)
